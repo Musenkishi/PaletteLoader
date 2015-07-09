@@ -373,8 +373,18 @@ public class Atelier {
         }
     }
 
+    private static void callColorListener(int color, OnPaletteColorListener onPaletteColorListener) {
+        if (onPaletteColorListener != null) {
+            onPaletteColorListener.onColor(color);
+        }
+    }
+
     public interface OnPaletteRenderedListener {
         void onRendered(Palette palette);
+    }
+
+    public interface OnPaletteColorListener {
+        void onColor(int color);
     }
 
     public static class AtelierBuilder {
@@ -386,6 +396,7 @@ public class Atelier {
         private Swatch swatch = new VibrantSwatch(ColorType.BACKGROUND);
         private Palette palette;
         private OnPaletteRenderedListener onPaletteRenderedListener;
+        private OnPaletteColorListener onPaletteColorListener;
 
         public AtelierBuilder(String id) {
             this.id = id;
@@ -421,6 +432,11 @@ public class Atelier {
             return this;
         }
 
+        public AtelierBuilder colorsListener(OnPaletteColorListener onPaletteColorListener) {
+            this.onPaletteColorListener = onPaletteColorListener;
+            return this;
+        }
+
         public void into(View... views) {
             for (View view : views) {
                 start(view);
@@ -428,16 +444,18 @@ public class Atelier {
         }
 
         private void start(View view) {
-            final PaletteTarget paletteTarget = new PaletteTarget(id, swatch, view, maskDrawable, fallbackColor, onPaletteRenderedListener);
+            final PaletteTarget paletteTarget = new PaletteTarget(id, swatch, view, maskDrawable, fallbackColor, onPaletteRenderedListener, onPaletteColorListener);
             if (palette != null) {
                 paletteCache.put(paletteTarget.getId(), palette);
                 applyColorToView(paletteTarget, palette, false);
                 callListener(palette, onPaletteRenderedListener);
+                callColorListener(swatch.getColor(palette), onPaletteColorListener);
             } else {
                 if (paletteCache.get(id) != null) {
                     Palette palette = paletteCache.get(id);
                     applyColorToView(paletteTarget, palette, true);
                     callListener(palette, onPaletteRenderedListener);
+                    callColorListener(swatch.getColor(palette), onPaletteColorListener);
                 } else {
                     if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP) {
                         executorService.submit(new PaletteRenderer(bitmap, paletteTarget));
@@ -495,6 +513,7 @@ public class Atelier {
         public void run() {
             applyColorToView(paletteTarget, palette, fromCache);
             callListener(palette, paletteTarget.getListener());
+            callColorListener(paletteTarget.getSwatch().getColor(palette), paletteTarget.getColorListener());
         }
     }
 
@@ -502,16 +521,18 @@ public class Atelier {
         private String id;
         private Swatch swatch;
         private View view;
+        private OnPaletteColorListener onPaletteColorListener;
         private boolean maskDrawable;
         private OnPaletteRenderedListener onPaletteRenderedListener;
 
-        private PaletteTarget(String id, Swatch swatch, View view, boolean maskDrawable, int fallbackColor, OnPaletteRenderedListener onPaletteRenderedListener) {
+        private PaletteTarget(String id, Swatch swatch, View view, boolean maskDrawable, int fallbackColor, OnPaletteRenderedListener onPaletteRenderedListener, OnPaletteColorListener onPaletteColorListener) {
             this.id = id;
             this.swatch = swatch;
             this.view = view;
+            this.onPaletteColorListener = onPaletteColorListener;
+            this.onPaletteRenderedListener = onPaletteRenderedListener;
             this.view.setTag(viewTagKey, new PaletteTag(this.id, fallbackColor));
             this.maskDrawable = maskDrawable;
-            this.onPaletteRenderedListener = onPaletteRenderedListener;
         }
 
         public String getId() {
@@ -532,6 +553,10 @@ public class Atelier {
 
         public OnPaletteRenderedListener getListener() {
             return onPaletteRenderedListener;
+        }
+
+        public OnPaletteColorListener getColorListener() {
+            return onPaletteColorListener;
         }
     }
 
